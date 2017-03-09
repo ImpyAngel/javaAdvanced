@@ -1,2 +1,2 @@
 # javaAdvanced
-Java advanced cours from ITMO
+Java advanced course from ITMO

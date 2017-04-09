@@ -2,232 +2,198 @@ package ru.ifmo.ctddev.toropin.arrayset;
 
 import java.util.*;
 
-/**
- * Created by impy on 17.02.17.
- */
-public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
+public class ArraySet<E> extends AbstractSet<E>
+        implements NavigableSet<E> {
 
-    private ArrayList<T> data;
+    final private List<E> sortedList;
+    final private Comparator<E> comparator;
 
-    private Comparator<T> comp;
-
-    public ArraySet(){
-        this.data = new ArrayList<T>();
-        this.comp = null;
+    public ArraySet() {
+        sortedList = Collections.emptyList();
+        comparator = null;
     }
 
-    public ArraySet(Collection<T> data) {
-        this.data = new ArrayList<T>(data);
-        this.data.sort(this.comp);
-        this.comp = null;
+    public ArraySet(Collection<E> collection, Comparator<E> comparator) {
+        this(collection, comparator, false);
     }
 
-    public ArraySet(Collection<T> data, Comparator<T> comp) {
-        this(data, comp, false);
+    public ArraySet(Collection<? extends E> collection) {
+        this((Collection<E>) collection, null);
     }
 
-    private ArraySet(Collection<T> data, Comparator<T> comp, boolean sorted) {
-        this.comp = comp;
-        if (sorted) {
-            this.data = new ArrayList<T>(data);
+    private ArraySet(Collection<E> collection, Comparator<E> comparator, boolean isSorted) {
+        this.comparator = comparator;
+        if (!isSorted) {
+            TreeSet<E> treeSet = new TreeSet<>(comparator);
+            treeSet.addAll(collection);
+            sortedList = new ArrayList<>(treeSet);
         } else {
-            TreeSet<T> tree = new TreeSet<T>(comp);
-            tree.addAll(data);
-            this.data = new ArrayList<T>(tree);
-            this.data.sort(this.comp);
+            this.sortedList = (List<E>) collection;
         }
     }
-    /*
-        * hand is a turn of start the binarySearch
-        * comp is a wrapper on the lambda
-        * it return 1 when element necessary and 0 else
-        * function return index of necessary element or -1
-     */
-    private int binarySearch(Comparator<Integer> comp, boolean hand) {
-        if (this.size() == 0) return -1;
 
-        int left = 0, right = data.size() - 1;
-        if ( (comp.compare(left, left) == 0) ||
-                (comp.compare(right, right) == 0)) return -1;
-        if (hand && comp.compare(right, right) == 1) return right;
-        if (!hand && comp.compare(left, left) == 1) return left;
+    private boolean indexInBounds(int index) {
+        return index >= 0 && index < sortedList.size();
+    }
 
-        while (right - left > 1) {
-            int middle = (left + right) / 2;
-            if ((middle > 0 && middle < size() && comp.compare(middle, middle) == 1) ^ !hand) {
-                left = middle;
+    private int indexFromBinarySearch(int ifEqual, int ifNeededLower, E e) {
+        int result = Collections.binarySearch(sortedList, e, comparator);
+        result = result >= 0
+                ? result + ifEqual
+                : -result - 1 - ifNeededLower;
+        return result;
+    }
+
+    @Override
+    public Comparator<? super E> comparator() {
+        return comparator;
+    }
+
+    @Override
+    public E first() {
+        if (sortedList.size() == 0) {
+            throw new NoSuchElementException("List is empty");
+        }
+        return sortedList.get(0);
+    }
+
+    @Override
+    public E last() {
+        if (sortedList.size() == 0) {
+            throw new NoSuchElementException("List is empty");
+        }
+        return sortedList.get(sortedList.size() - 1);
+    }
+
+    @Override
+    public E lower(E e) {
+        int result = indexFromBinarySearch(-1, 1, e);
+        return indexInBounds(result) ? sortedList.get(result) : null;
+    }
+
+    @Override
+    public E floor(E e) {
+        int result = indexFromBinarySearch(0, 1, e);
+        return indexInBounds(result) ? sortedList.get(result) : null;
+    }
+
+    @Override
+    public E ceiling(E e) {
+        int result = indexFromBinarySearch(0, 0, e);
+        return indexInBounds(result) ? sortedList.get(result) : null;
+    }
+
+    @Override
+    public E higher(E e) {
+        int result = indexFromBinarySearch(1, 0, e);
+        return indexInBounds(result) ? sortedList.get(result) : null;
+    }
+
+    @Override
+    public E pollFirst() {
+        throw new UnsupportedOperationException("ArraySet is immutable");
+    }
+
+    @Override
+    public E pollLast() {
+        throw new UnsupportedOperationException("ArraySet is immutable");
+    }
+
+    @Override
+    public NavigableSet<E> subSet(E fromElement, boolean fromInclusive,
+                                  E toElement, boolean toInclusive) {
+
+        int fromIndex = fromInclusive
+                ? indexFromBinarySearch(0, 0, fromElement)
+                : indexFromBinarySearch(1, 0, fromElement);
+
+        int toIndex = toInclusive
+                ? indexFromBinarySearch(0, 1, toElement) + 1
+                : indexFromBinarySearch(-1, 1, toElement) + 1;
+
+        if (fromIndex > toIndex) {
+            fromIndex = toIndex;
+        }
+
+        return new ArraySet<>(sortedList.subList(fromIndex, toIndex), comparator, true);
+    }
+
+    @Override
+    public NavigableSet<E> headSet(E e, boolean b) {
+        return subSet(size() == 0 ? null : first(), true, e, b);
+    }
+
+    @Override
+    public NavigableSet<E> tailSet(E e, boolean b) {
+        return subSet(e, b, size() == 0 ? null : last(), true);
+    }
+
+    @Override
+    public SortedSet<E> subSet(E fromElement, E toElement) {
+        return subSet(fromElement, true, toElement, false);
+    }
+
+    @Override
+    public SortedSet<E> headSet(E e) {
+        return headSet(e, false);
+    }
+
+    @Override
+    public SortedSet<E> tailSet(E e) {
+        return tailSet(e, true);
+    }
+
+    @Override
+    public Iterator<E> iterator() {
+        return Collections.unmodifiableList(sortedList).iterator();
+    }
+
+    @Override
+    public int size() {
+        return sortedList == null ? 0 : sortedList.size();
+    }
+
+    private class DescendingList<T> extends AbstractList<T> implements RandomAccess {
+        private final List<T> list;
+        private final boolean isReversed;
+
+        DescendingList(List<T> list) {
+            if (!(list instanceof DescendingList)) {
+                this.list = list;
+                isReversed = true;
             } else {
-                right = middle;
+                this.list = ((DescendingList<T>) list).list;
+                isReversed = !((DescendingList<T>) list).isReversed;
             }
         }
-        return hand ? left : right;
-    }
 
-    private T search(int index) {
-        return index == -1 ? null : data.get(index);
-    }
+        @Override
+        public int size() {
+            return list.size();
+        }
 
-    private int indexLower(T t, boolean inclusive) {
-       try {
-           return binarySearch((t1, t2) -> comp.compare(data.get(t1), t) <= (inclusive ? 0 : -1) ? 1 : 0, true);
-       } catch (NullPointerException e) {
-            return 0;
-       }
-    }
-
-    private int indexHigher(T t, boolean inclusive) {
-    try {
-            return binarySearch((t1, t2) -> comp.compare(data.get(t1), t) >= (inclusive ? 0 : 1) ? 1 : 0, false);
-        } catch (NullPointerException e) {
-            return 0;
+        @Override
+        public T get(int index) {
+            return isReversed ? list.get(size() - index - 1) : list.get(index);
         }
     }
 
     @Override
-    public T lower(T t) {
-        return search(indexLower(t, false));
+    public NavigableSet<E> descendingSet() {
+        return new ArraySet<>(new DescendingList<>(sortedList), Collections.reverseOrder(comparator), true);
     }
 
     @Override
-    public T floor(T t) { return search(indexLower(t, true)); }
-
-    @Override
-    public T ceiling(T t) { return search(indexHigher(t, true)); }
-
-    @Override
-    public T higher(T t) { return search(indexHigher(t,false)); }
-
-    @Override
-    public T pollFirst() {
-        throw new UnsupportedOperationException("Immutable set");
-    }
-
-    @Override
-    public T pollLast() {
-        throw new UnsupportedOperationException("Immutable set");
+    public Iterator<E> descendingIterator() {
+        return new DescendingList<>(sortedList).iterator();
     }
 
     @Override
     public boolean contains(Object o) {
-        return Collections.binarySearch(data, (T) o, comp) >= 0;
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-
-        return Collections.unmodifiableList(data).iterator();
-    }
-    @Override
-    public int size() {
-        return data.size();
-    }
-
-//    @Override
-//    public boolean containsAll(Collection<?> collection) {
-//        for (Object aCollection : collection)
-//            if (!contains(aCollection)) return false;
-//        return true;
-//    }
-    @Override
-    public NavigableSet<T> descendingSet() {
-        ArrayList new_data = new ArrayList<T>(data);
-        Collections.reverse(new_data);
-        return new ArraySet<T>(new_data, Collections.reverseOrder(comp));
-    }
-
-    @Override
-    public Iterator<T> descendingIterator() {
-        return descendingSet().iterator();
-    }
-
-    @Override
-    public NavigableSet<T> subSet(T t, boolean b, T e1, boolean b1) {
-        return (this.tailSet(t, b)).headSet(e1, b1);
-    }
-
-    @Override
-    public NavigableSet<T> tailSet(T t, boolean b) {
-        int from = indexHigher(t, b);
-        if (from < 0 || data.size() <= from)  {
-            ArraySet<T> ans = new ArraySet<T>();
-            ans.comp = comp;
-            return ans;
+        try {
+            return Collections.binarySearch(sortedList, (E) o, comparator) >= 0;
+        } catch (ClassCastException e) {
+            return false;
         }
-        return new ArraySet<T>(data.subList(from, data.size()), comp, true);
     }
-
-    @Override
-    public NavigableSet<T> headSet(T t, boolean b) {
-        return new ArraySet<T>(data.subList(0, indexLower(t, b) + 1), comp, true);
-    }
-
-    @Override
-    public Comparator<? super T> comparator() {
-        return comp;
-    }
-
-    @Override
-    public SortedSet<T> subSet(T t, T e1) {
-        return subSet(t, true, e1, false);
-    }
-
-    @Override
-    public SortedSet<T> headSet(T t) {
-        return headSet(t, false);
-    }
-
-    @Override
-    public SortedSet<T> tailSet(T t) {
-        return tailSet(t, true);
-    }
-
-    @Override
-    public T first() {
-        if (size() == 0) throw new NoSuchElementException("Set is empty");
-        return data.get(0);
-    }
-
-    @Override
-    public T last() {
-    if (size() == 0) throw new NoSuchElementException("Set is empty");
-        return data.get(data.size() - 1);
-    }
-    @Override
-    public boolean add(T t) {
-        throw new UnsupportedOperationException("Immutable set");
-    }
-//
-//    @Override
-//    public boolean remove(Object o) {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-//
-//
-//    @Override
-//    public boolean addAll(Collection<? extends T> collection) {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-//
-//    @Override
-//    public boolean retainAll(Collection<?> collection) {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-//
-//    @Override
-//    public boolean removeAll(Collection<?> collection) {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-//
-//    @Override
-//    public void clear() {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-//
-
-//    @Override
-//    public <T1> T1[] toArray(T1[] t1s) {
-//        throw new UnsupportedOperationException("Immutable set");
-//    }
-
-
 }

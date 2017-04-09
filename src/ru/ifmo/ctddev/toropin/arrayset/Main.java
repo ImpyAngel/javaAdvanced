@@ -15,7 +15,7 @@ public class Main {
         System.out.println(test.ceiling(6));
         System.out.println(test.contains(4));
         System.out.println(test.containsAll(set));
-        NavigableSet<Integer> new_test = test.tailSet(null, true);
+        NavigableSet<Integer> new_test = test.tailSet(1, true);
         System.out.println(new_test.size());
     }
 }
